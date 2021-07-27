@@ -24,10 +24,15 @@ require_file_exists() {
 # opts
 ###
 
-while getopts ":v" opt; do
+while getopts ":t:vc" opt; do
   case "$opt" in
+    t) LAUNCH_TERM=$OPTARG ;;
     v) set -x ;;
+    c)
+      preprop_from_clipboard='true'
+      ;;
     \?) echo "Invalid option: -$OPTARG" >&2 ;;
+    :) echo "Option -$OPTARG requires an argument" >&2 ;;
   esac
 done
 
@@ -56,11 +61,23 @@ touch $TMPFILE
 # Linux
 if [[ $OSTYPE == "linux-gnu" ]]; then
   chmod o-r $TMPFILE # Make file only readable by you
-  gvim $VIM_OPTS $TMPFILE
+  if [ "${preprop_from_clipboard}" = 'true' ]; then
+    cont=$(xclip -selection clipboard -o)
+    xclip -selection clipboard -o > $TMPFILE
+  fi
+  if [[ "" != "$LAUNCH_TERM" ]]; then
+	  $LAUNCH_TERM -e vim $VIM_OPTS $TMPFILE
+  else
+	  gvim $VIM_OPTS $TMPFILE
+  fi
   cat $TMPFILE | xclip -selection clipboard
 
 # OSX
 elif [[ $OSTYPE == "darwin"* ]]; then
+  if [[ "" != "$LAUNCH_TERM" ]]; then
+	  echo "The -t option is not supported by OSX at this time"
+	  exit 1
+  fi
   # if there is no path file, it must have been deleted or the installer failed
   require_file_exists $AW_PATH/.path \
     "Please reinstall vim-anywhere."
@@ -71,6 +88,10 @@ elif [[ $OSTYPE == "darwin"* ]]; then
   require_file_exists $mvim_path \
     "mvim must have been moved or uninstalled.\nPlease make sure it is" \
     "available in your path and then reinstall vim-anywhere."
+
+  if [ "${preprop_from_clipboard}" = 'true' ]; then
+    LANG=en_US.UTF-8 pbpaste > $TMPFILE
+  fi
 
   $mvim_path $VIM_OPTS $TMPFILE
   # todo, fix invalid file
